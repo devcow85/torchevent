@@ -1,10 +1,10 @@
-import pickle
+import pandas as pd
 
 import torch
 import torch.nn as nn
 
 import torchevent.layers as L
-from torchevent.utils import _convert_state_dict_to_numpy, _parse_extra_repr, _tensor_to_numpy
+from torchevent.profile import LayerwiseProfiler
 
 def conv_pool_block(in_channels, out_channels, kernel_size, padding, pooling_size, pooling_stride, tsslbp_config):
     """
@@ -39,68 +39,32 @@ class BaseNet(nn.Module):
         }
         self.layers = nn.ModuleList()  # A single ModuleList to store all layers (conv and fc)
         
-        self.trace_dict = {}
-        self.hooks = []  # Store forward hooks
+        # Initialize LayerwiseProfiler and attach to the model
+        self.profiler = LayerwiseProfiler(self)
 
+    def forward(self, x):
+        x = x.permute(0, 2, 3, 4, 1)  # Assuming the permutation is common across models
+        for layer in self.layers:
+            x = layer(x)
+        return x
 
-    # Helper method to create layers dynamically
     def _make_layers(self, layer_configs):
+        """
+        Helper method to create layers dynamically.
+        """
         layers = []
         for layer_class, layer_params in layer_configs:
             layer = layer_class(**layer_params)
             layers.append(layer)
         return layers
 
-    def forward(self, x):
-        x = x.permute(0, 2, 3, 4, 1)  # Assuming the permutation is common across models
-
-        for layer in self.layers:
-            x = layer(x)
-
-        return x
-    
-    def _hook_fn(self, name):
-        
-        def hook(module, inputs, outputs):
-            self.trace_dict[name] = {
-                "module_type": type(module).__name__,
-                "inputs": tuple(_tensor_to_numpy(inp) for inp in inputs),
-                "outputs": _tensor_to_numpy(outputs),
-                "extra_repr": _parse_extra_repr(module.extra_repr()),
-                "state_dict": _convert_state_dict_to_numpy(module.state_dict())
-                }
-        return hook
-        
-    def register_hook(self):
-        if self.hooks:
-            print("Hooks are already registered.")
-            return
-        
-        for name, module in self.named_modules():
-            # Check if the module has no submodules (leaf module)
-            if len(list(module.children())) == 0:
-                hook = module.register_forward_hook(self._hook_fn(name))
-                self.hooks.append(hook)
-
-    def remove_hook(self):
-        for hook in self.hooks:
-            try:
-                hook.remove()
-            except Exception as e:
-                print(f"Failed to remove hook: {e}")
-        self.hooks.clear()
-    
     def weight_clipper(self):
-        for name, module in self.named_modules():
+        for _, module in self.named_modules():
             # Check if the module has no submodules (leaf module)
             if len(list(module.children())) == 0:
                 if hasattr(module, 'weight_clipper'):
                     module.weight_clipper()
-                    
-    def save_trace_dict(self, filename):
-        with open(filename, 'wb') as f:
-            pickle.dump(self.trace_dict, f)
-            
+                
     def save_model(self, filename):
         model_data = {
             "state_dict": self.state_dict(),
@@ -120,27 +84,46 @@ class BaseNet(nn.Module):
         self.tsslbp_config = model_data['tsslbp_config']
         
         print(f"Model loaded from {filename}")
-        print("tsslbp config changed!")
-        print(self.tsslbp_config)
-        
+        print("tsslbp config updated:", self.tsslbp_config)
+    
+    def trace(self, input_data):
+        """
+        Perform a trace using LayerwiseProfiler with a given input shape or tensor.
+
+        Args:
+            input_data (tuple or torch.Tensor): If tuple, it is treated as input shape. 
+                                                If torch.Tensor, it is used directly as input.
+        Returns:
+            list: Collected profiling data from LayerwiseProfiler.
+        """
+        # Determine input tensor
+        if isinstance(input_data, tuple):
+            dummy_input = torch.rand((1,) + input_data)  # Create dummy input from shape
+        elif isinstance(input_data, torch.Tensor):
+            dummy_input = input_data  # Use the provided tensor directly
+        else:
+            raise ValueError("input_data must be either a tuple (input shape) or a torch.Tensor")
+
+        # Perform profiling
+        with self.profiler.profile(profile_type='trace') as prof:
+            self(dummy_input)  # Perform a forward pass
+
+        return self.profiler.get_data()
+    
     def summary(self, input_shape):
-        self.register_hook()
-        self.forward(torch.rand((1,)+input_shape))
-        self.remove_hook()
+        """
+        Generate a summary of the model using LayerwiseProfiler.
+        """
+        dummy_input = torch.rand((1,) + input_shape)
+        with self.profiler.profile(profile_type='summary') as prof:
+            _ = self(dummy_input)  # Perform a forward pass with dummy input
+
+        summary_data = self.profiler.get_data()
         
-        key_data = list(self.trace_dict.keys())
+        df = pd.DataFrame(summary_data)
         
-        
-        summary_dict = {
-            "num_layers": len(key_data),
-            "input_shape": input_shape,
-            "num_classes": self.trace_dict[key_data[-1]]['outputs'].shape[1],
-            "num_parameters": sum(p.numel() for p in self.parameters())
-        }
-        
-        self.trace_dict = {}
-        
-        return summary_dict | self.tsslbp_config
+        print(df.to_string())
+
 
 # NCARS Network 64x64 input
 class NCARSNet(BaseNet):
