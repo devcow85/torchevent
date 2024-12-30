@@ -58,6 +58,25 @@ class SpikeCountLoss(nn.Module):
                 
         return 1 / 2 * torch.sum(delta**2)
 
+class SpikeCumulativeLoss(nn.Module):
+    def __init__(self, gamma = 0.0):
+        super(SpikeCumulativeLoss, self).__init__()
+        self.gamma = gamma
+        
+    def forward(self, outputs, labels):
+        
+        target = torch.zeros_like(outputs)
+        target.scatter_(1, 
+                labels.unsqueeze(1).unsqueeze(2).unsqueeze(3).unsqueeze(4).expand(-1, -1, -1, -1, outputs.shape[4]),  # T (시간 차원) 확장
+                torch.full_like(target, 1))
+        
+        output_cumsum = torch.cumsum(outputs, dim=-1)
+        target_cumsum = torch.cumsum(target, dim=-1)
+        
+        err = abs(target_cumsum - output_cumsum)
+        focal_weight = (1-err) ** self.gamma
+        return torch.sum(focal_weight*(err**2))
+
 class SpikeSoftmaxLoss(nn.Module):
     def __init__(self):
         super(SpikeSoftmaxLoss, self).__init__()

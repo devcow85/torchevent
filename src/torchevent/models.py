@@ -75,16 +75,37 @@ class BaseNet(nn.Module):
         
     def load_model(self, filename):
         model_data = torch.load(filename)
-        
-        keys_to_delete = [key for key in model_data['state_dict'].keys() if 'membrain_input' in key]
+        state_dict = model_data['state_dict']
+
+        # Filter out keys not present in the current model
+        keys_to_delete = []
+        for key in state_dict.keys():
+            # Check if the key exists in the model
+            parts = key.split('.')
+            module = self
+            exists = True
+
+            for part in parts[:-1]:  # Traverse the hierarchy
+                if not hasattr(module, part):
+                    exists = False
+                    break
+                module = getattr(module, part)
+
+            if not exists or not hasattr(module, parts[-1]):  # Check final attribute
+                keys_to_delete.append(key)
+
+        # Remove keys not present in the model
         for key in keys_to_delete:
-            del model_data['state_dict'][key]
-        
-        self.load_state_dict(model_data['state_dict'])
-        self.tsslbp_config = model_data['tsslbp_config']
-        
+            print(f"Deleting key: {key} from state_dict")
+            del state_dict[key]
+
+        # Load the filtered state_dict into the model
+        self.load_state_dict(state_dict, strict=False)
+        self.tsslbp_config = model_data.get('tsslbp_config', None)  # Load config if present
+
         print(f"Model loaded from {filename}")
         print("tsslbp config updated:", self.tsslbp_config)
+
     
     def trace(self, input_data):
         """
@@ -124,6 +145,7 @@ class BaseNet(nn.Module):
         
         print(df.to_string())
 
+        return df
 
 # NCARS Network 64x64 input
 class NCARSNet(BaseNet):

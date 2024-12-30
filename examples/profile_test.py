@@ -1,4 +1,4 @@
-from torchevent import models, loss
+from torchevent import models
 
 
 if __name__ == "__main__":

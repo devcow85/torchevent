@@ -3,8 +3,7 @@ import re
 
 import numpy as np
 import torch
-from torch.nn.utils import clip_grad_norm_
-# from tqdm import tqdm
+from tqdm import tqdm
 
 import matplotlib.pyplot as plt
 
@@ -115,77 +114,51 @@ def plot_event_frame(event_data, file_name):
     i8_data = to_uint8(frame_concat)
     
     plt.imsave(file_name, i8_data)
+
+def mlloops(model, data_loader, optimizer = None, criterion = None, device = 'cpu', phase = 'train', metric_hook = None):
+    if phase not in ['train', 'eval']:
+        raise ValueError(f"Wrong {phase} is entered, please check phase value again between 'train', 'eval'")
     
-def train(model, epochs, data_loader, optimizer, loss, device = "cuda"):
-    model.train()
+    getattr(model, phase)()
     model.to(device)
     
-    total_acc = 0
     total_loss = 0
-    total_len = 0
+    total_samples = 0
     
-    with tqdm(data_loader, unit="batch", ) as nbatch:
-        nbatch.set_description(f'Epoch - {epochs}')
-        for data, targets in nbatch:
-            data = data.to(torch.float32)
-            data, targets = data.to(device), targets.to(device)
-                        
-            optimizer.zero_grad()
-            outputs = model(data)
-            
-            output_spike = torch.sum(outputs, dim=4).squeeze_(-1).squeeze_(-1).detach().cpu().numpy()
-            
-            vloss = loss(outputs, targets)
-            vloss.backward()
-            
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1)
-            optimizer.step()
-            # model.weight_clipper()
-            
-            total_loss+= torch.sum(vloss).item()
-            total_len+=len(targets)
-            
-            total_acc+=(
-                (output_spike.argmax(axis=1) == targets.cpu().numpy())
-                .sum()
-                .item()
-            )
-            
-            nbatch.set_postfix_str(f"train acc: {total_acc / total_len:.3f}, train loss: {total_loss / total_len:.3f}")
-
-        return total_acc, total_loss, total_len
-    
-    
-def validation(model, data_loader, device):
-    total_acc = 0
-    total_len = 0
+    all_outputs = []
     all_targets = []
-    all_preds = []
     
-    model.eval()
+    metric_dict = {}  
     
-    with tqdm(data_loader, unit="batch") as nbatch:
+    with tqdm(data_loader, unit="batch", desc=phase) as nbatch:
         for data, targets in nbatch:
-            data = data.to(torch.float32)
             data, targets = data.to(device), targets.to(device)
             
-            with torch.no_grad():
-                outputs = model(data)
+            data = data.to(torch.float32) # TODO: check 
             
-            output_spike = torch.sum(outputs, dim=4).squeeze_(-1).squeeze_(-1).detach().cpu().numpy()
-            total_len+=len(targets)
+            if phase == 'train':
+                optimizer.zero_grad()
+                
+            outputs = model(data)
+            loss = criterion(outputs, targets)
             
-            preds = output_spike.argmax(axis=1)
+            if phase == 'train':
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), 1)
+                optimizer.step()
+                model.weight_clipper()
             
-            total_acc+=(
-                (preds == targets.cpu().numpy())
-                .sum()
-                .item()
-            )
+            total_samples += data.size(0)
             
-            all_targets.extend(targets.detach().cpu().numpy())  # Ground truth values
-            all_preds.extend(preds)  # Predicted values
+            all_outputs.append(outputs.detach().cpu())
+            all_targets.append(targets.detach().cpu())
 
-            nbatch.set_postfix_str(f"val acc: {total_acc / total_len:.3f}")
+            metric_dict.update(metric_hook(all_outputs, all_targets) if metric_hook else {})
+            metric_dict["loss"] = metric_dict.get("loss", 0) + loss.item()
             
-    return total_acc, total_len, (all_targets, all_preds)
+            nbatch.set_postfix(metric_dict)
+    
+    metric_dict["loss"] /= total_samples
+    metric_dict['elapsed_time'] = nbatch.format_dict['elapsed']
+            
+    return metric_dict
