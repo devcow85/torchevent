@@ -67,7 +67,7 @@ class SpikeCumulativeLoss(nn.Module):
         
         target = torch.zeros_like(outputs)
         target.scatter_(1, 
-                labels.unsqueeze(1).unsqueeze(2).unsqueeze(3).unsqueeze(4).expand(-1, -1, -1, -1, outputs.shape[4]),  # T (시간 차원) 확장
+                labels.unsqueeze(1).unsqueeze(2).unsqueeze(3).unsqueeze(4).expand(-1, -1, -1, -1, outputs.shape[4]),
                 torch.full_like(target, 1))
         
         output_cumsum = torch.cumsum(outputs, dim=-1)

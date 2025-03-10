@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools", "wheel", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "torchevent"
+version = "0.1.0"
+description = "A PyTorch library for event-based data processing"
+authors = [{ name = "seokhun.jeon", email = "seokhun.jeon@keti.re.kr" }]
+license = { text = "MIT" }
+readme = "README.md"
+dependencies = [
+    "torch",
+    "tonic",
+    "matplotlib",
+    "pandas"
+]
+requires-python = ">=3.10"
+
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3.10",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Developers",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/devcow85/torchevent"

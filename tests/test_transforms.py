@@ -55,8 +55,7 @@ def test_event_frame_sum_resize():
     assert resized_frames.shape == (5, 1, 16, 16), "Sum-resized frame shape is incorrect"
 
 def test_event_normalize():
-    frames = torch.rand(5, 3, 32, 32)
-    normalize = EventNormalize()
+    frames = torch.rand(5, 1, 32, 32).numpy()
+    normalize = EventNormalize(mean=(128,), std=(1,))
     normalized_frames = normalize(frames)
     assert normalized_frames.shape == frames.shape, "Normalized frame shape is incorrect"
-    assert torch.is_tensor(normalized_frames), "Normalized output should be a tensor"

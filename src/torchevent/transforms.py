@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Union, Tuple
 from dataclasses import dataclass
 import numpy as np
 import tonic
@@ -121,58 +121,45 @@ class EventFrameResize:
 
 @dataclass(frozen=True)
 class EventFrameRandomResizedCrop:
-    size: tuple  # 목표 크기 (width, height)
-    scale: tuple = (0.08, 1.0)  # 크롭할 이미지 크기의 범위 비율 (default는 RandomResizedCrop의 기본값)
-    ratio: tuple = (3. / 4., 4. / 3.)  # 크롭할 이미지의 가로 세로 비율 범위
-    interpolation: int = Image.BILINEAR  # 리사이즈 시 사용할 보간법
+    size: tuple  
+    scale: tuple = (0.08, 1.0)  
+    ratio: tuple = (3. / 4., 4. / 3.) 
+    interpolation: int = Image.BILINEAR
     
     def __call__(self, frames):
-        """
-        frames: (N, H, W, C) 형식의 여러 개의 프레임을 입력받아 RandomResizedCrop으로 크롭하고, 다시 target size로 resize.
-        """
-        # RandomResizedCrop 설정: 입력된 파라미터들을 활용
         random_resized_crop = T.RandomResizedCrop(self.size, scale=self.scale, ratio=self.ratio, interpolation=self.interpolation)
 
         resized_frame = np.zeros(frames.shape[:2] + self.size[::-1], dtype=np.int16)
 
         for idx, frame in enumerate(frames):
             frame = frame.astype(np.uint8)
-            pil_frame = to_pil_image(frame.transpose(1, 2, 0))  # frame을 PIL 이미지로 변환
+            pil_frame = to_pil_image(frame.transpose(1, 2, 0))
 
-            # RandomResizedCrop을 적용하여 크롭 및 리사이즈
             pil_frame_cropped = random_resized_crop(pil_frame)
 
-            # 결과를 resized_frame 배열에 저장
             resized_frame[idx] = pil_frame_cropped
 
-        return resized_frame  # Stack frames back into a single tensor
+        return resized_frame
 
 @dataclass(frozen=True)
 class EventFrameSumResize:
-    size: tuple  # target size (width, height)
+    size: tuple
 
     def __call__(self, frames):
-        # frames are assumed to be in shape (batch_size, channels, height, width)
-
-        # Get the target size
         target_height, target_width = self.size
 
-        # Prepare an empty array to hold the resized frames
         resized_frame = np.zeros((frames.shape[0], frames.shape[1], target_height, target_width), dtype=np.int16)
 
         for idx, frame in enumerate(frames):
-            # Apply sum pooling by reducing the resolution using summation over pooling windows
-            frame_tensor = torch.from_numpy(frame).float()  # Convert the frame to a torch tensor
+            frame_tensor = torch.from_numpy(frame).float()
 
-            # Perform sum pooling using a kernel size corresponding to the downscaling factor
             scale_y = frame.shape[1] // target_height
             scale_x = frame.shape[2] // target_width
             pooled_frame = F.avg_pool2d(frame_tensor, kernel_size=(scale_y, scale_x), stride=(scale_y, scale_x)) * (scale_y * scale_x)
 
-            # Convert back to numpy and store it in resized_frame
             resized_frame[idx] = pooled_frame.numpy().astype(np.int16)
 
-        return resized_frame  # Return the resized frames
+        return resized_frame
     
 @dataclass(frozen=True)
 class EventNormalize:
@@ -180,6 +167,17 @@ class EventNormalize:
     std: tuple = (0.229, 0.224, 0.225)
     
     def __call__(self, frames):
-        mean = torch.tensor(self.mean).view(1, -1, 1, 1)
-        std = torch.tensor(self.std).view(1, -1, 1, 1)
-        return (frames - mean) / std
+        return (frames - self.mean) / self.std
+    
+    
+@dataclass(frozen=True)
+class UniformNoiseAuto:
+    n: Union[int, Tuple[int,int]]
+    
+    def __call__(self, events):
+        sensor_size = (max(events["x"]) + 1, max(events["y"]) + 1, 2)
+
+        return tonic.transforms.UniformNoise(
+            sensor_size=sensor_size,
+            n = self.n
+        )(events)

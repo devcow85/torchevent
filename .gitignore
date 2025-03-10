@@ -5,3 +5,7 @@ build
 __pycache__
 venv
 .pytest_cache
+dist
+*.pt
+results
+examples/

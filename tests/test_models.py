@@ -1,6 +1,6 @@
 import pytest
 import torch
-from torchevent.models import NCARSNet, NMNISTNet, DVSGestureNet, PPGen4NetMini, PPGen4NetMini128
+from torchevent.models import NCARSNet, NMNISTNet, DVSGestureNet, PGen4NetMini
 
 def test_ncarsnet_forward():
     model = NCARSNet(tau_m=5, tau_s=1, n_steps=5)
@@ -24,18 +24,11 @@ def test_dvsgesturenet_forward():
     assert outputs.shape == (2, 11, 1, 1, 5), "Output shape mismatch for DVSGestureNet"
 
 def test_ppgen4netmini_forward():
-    model = PPGen4NetMini(tau_m=5, tau_s=1, n_steps=5)
+    model = PGen4NetMini(tau_m=5, tau_s=1, n_steps=5)
     inputs = torch.randn(2, 5, 1, 64, 64)  # (batch_size, steps, channels, H, W)
     outputs = model(inputs)
     
     assert outputs.shape == (2, 5, 1, 1, 5), "Output shape mismatch for PPGen4NetMini"
-
-# def test_ppgen4netmini128_forward():
-#     model = PPGen4NetMini128(tau_m=5, tau_s=1, n_steps=5)
-#     inputs = torch.randn(2, 5, 1, 64, 64)  # (batch_size, steps, channels, H, W)
-#     outputs = model(inputs)
-    
-#     assert outputs.shape == (2, 5, 1, 1, 5), "Output shape mismatch for PPGen4NetMini128"
 
 def test_model_weight_save_load(tmp_path):
     model = NCARSNet(tau_m=5, tau_s=1, n_steps=5)
