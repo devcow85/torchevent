@@ -14,8 +14,8 @@ import matplotlib.pyplot as plt
 
 class ArtifactManager:
     def __init__(self, experiment_name, cache_dir=None):
-        self.experiment_name = experiment_name
-        self.cache_dir = cache_dir or os.path.expanduser("~/.cache/torchevent")
+        self.experiment_name = str(experiment_name)
+        self.cache_dir = cache_dir or os.environ.get("TORCHEVENT_CACHE")
         self.artifacts = {}
         os.makedirs(self.cache_dir, exist_ok=True)
 

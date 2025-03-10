@@ -140,3 +140,59 @@ def mlloops(model, data_loader, optimizer = None, criterion = None, device = 'cp
     metric_dict['elapsed_time'] = nbatch.format_dict['elapsed']
             
     return metric_dict
+
+from torchevent import models, loss
+from torchevent.artifacts import ArtifactManager
+from torchevent.metrics import extented_cls_metric_hook, acc_metric_hook
+import copy
+
+def runner(train_recipes, dataloader):
+    train_loader, val_loader = dataloader
+    
+    model = getattr(models, train_recipes["model"]["model_name"])(**train_recipes["model"]["kwargs"])
+    
+    artifacts = ArtifactManager(model._get_name())
+    artifacts['summary'] = model.summary(train_loader.dataset[0][0].shape)   # 01. dataframe for given dataset's sensor size
+    
+    artifacts['train_recipes'] = train_recipes  # 07. training recipes
+    
+    optimizer = getattr(torch.optim, train_recipes["optimizer"]["class"])(model.parameters(), **train_recipes["optimizer"]["kwargs"])
+    criterion = getattr(loss,train_recipes["loss"]["class"])(*train_recipes["loss"]["args"])
+    # criterion = loss.SpikeCumulativeLoss(gamma=0)
+    
+    learning_log = []
+    best_acc = 0
+    for epoch in range(train_recipes["max_epoch"]):
+        logdict = {'epoch': epoch, 'phase': 'train'}
+        metric = mlloops(model, train_loader, optimizer, criterion, "cuda", 'train', acc_metric_hook)
+        logdict.update(metric)
+        learning_log.append(logdict)
+        
+        logdict = {'epoch': epoch, 'phase': 'eval'}
+        metric = mlloops(model, val_loader, optimizer, criterion, "cuda", 'eval', extented_cls_metric_hook)
+        logdict.update(metric)
+        learning_log.append(logdict)
+        
+        if best_acc < float(metric['acc']):
+            best_acc = float(metric['acc'])
+            # model.save_model('examples/best_model.pt')  # 03. best model
+            artifacts['best_model'] = copy.deepcopy(model.state_dict())
+            print("save model!")
+    
+    artifacts['learning_curves'] = learning_log    # 02. learning logs
+    
+    model.load_state_dict(artifacts['best_model'])
+    print('best eval result')
+    metric = mlloops(model, val_loader, optimizer, criterion, "cuda", 'eval', extented_cls_metric_hook)
+    
+    artifacts['eval_metric'] = metric   # 04. evaluation metric
+    
+    print('trace model')
+    for data, target in val_loader:
+        data = data.to('cuda').to(torch.float32)
+        trace_result = model.trace(data)
+        
+        break
+    
+    artifacts['trace_data'] = trace_result  # 06. trace data
+    artifacts.save()
