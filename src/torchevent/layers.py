@@ -64,9 +64,7 @@ class SNNConv3d(nn.Conv3d):
         self.membrain_input = x
         
         if self.use_tsslbp:
-            # x와 동일한 device와 dtype으로 syn_a 복사
             device_syn_a = self.syn_a.to(x.device).type(x.dtype)
-            # TSSLBP 설정이 제대로 설정되었는지 확인
             x = TSSLBP.apply(x, self.tau_m, self.tau_s, self.threshold, device_syn_a)
         return x
 
@@ -88,7 +86,6 @@ class SNNLinear(nn.Linear):
         self.threshold = threshold
         self.n_steps = n_steps
         
-        # syn_a 초기화
         self.register_buffer('syn_a', self.init_syn_a(n_steps, tau_s))
         self.register_buffer('membrain_input', None)
         
@@ -108,19 +105,16 @@ class SNNLinear(nn.Linear):
         return f"{org_repr}, use_tsslbp={self.use_tsslbp}, tau_m={self.tau_m}, tau_s={self.tau_s}, threshold={self.threshold}, n_steps={self.n_steps}"
     
     def forward(self, x):
-        # 입력 차원 조정
-        x = x.view(x.shape[0], -1, x.shape[-1])  # (batch_size, in_features, n_steps)
+        x = x.view(x.shape[0], -1, x.shape[-1])
         x = x.transpose(1, 2)
-        y = F.linear(x, self.weight, None)  # bias는 None
+        y = F.linear(x, self.weight, None)
         
-        # 출력 차원 복원
         y = y.transpose(1, 2)
         y = y.view(y.shape[0], self.out_features, 1, 1, -1)
         
         self.membrain_input = y
         
         if self.use_tsslbp:
-            # x와 동일한 device와 dtype으로 syn_a 복사
             device_syn_a = self.syn_a.to(x.device).type(x.dtype)
             
             y = TSSLBP.apply(y, self.tau_m, self.tau_s, self.threshold, device_syn_a)
@@ -158,7 +152,6 @@ class SNNSumPooling(nn.Conv3d):
             bias=False
         )
         
-        # weight initialization
         self.weight = torch.nn.Parameter(1 * torch.ones(self.weight.shape), requires_grad=False)
 
     def forward(self, x):

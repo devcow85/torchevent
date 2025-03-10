@@ -13,10 +13,6 @@ class LayerwiseProfiler:
         self.model = model
     
     def _wrapper(self, module, name, profile_type):
-        """
-        Wrap forward function to profile layer informations
-        """
-        
         original_forward = module.forward
         self.original_forwards[name] = (module, original_forward)  # Store the module and its original forward method
         
@@ -56,10 +52,6 @@ class LayerwiseProfiler:
     
     @contextlib.contextmanager
     def profile(self, profile_type='summary'):
-        """
-        Profile all leaf modules in the registered model.
-        Automatically clears profiling data after the context ends.
-        """
         self.pdata.clear()
         
         if self.model is None:
@@ -75,9 +67,6 @@ class LayerwiseProfiler:
             self.clear()
 
     def clear(self):
-        """
-        Restore the original forward methods for all wrapped modules and clear profiler data.
-        """
         for name, (module, original_forward) in self.original_forwards.items():
             module.forward = original_forward  # Restore the original forward method
         self.original_forwards.clear()

@@ -78,21 +78,20 @@ class ToFrameAuto:
             n_event_bins=self.n_event_bins,
             overlap=self.overlap,
             include_incomplete=self.include_incomplete,
-        )(events) # for channel first format
+        )(events)
         
 @dataclass(frozen=True)
 class MergeFramePolarity:
     bias: int = 128
-    scale: float = 1.0  # Add a scaling factor with default value 1.0
+    scale: float = 1.0
 
     def __call__(self, frames):
         merged_frames = np.zeros((frames.shape[0], 1,) + frames.shape[2:], dtype=np.int16)
     
         for i, frame in enumerate(frames):
-            # Apply the scale to the difference between frame[1] and frame[0]
             merged_frames[i][0] = self.bias + self.scale * (frame[1] - frame[0])
         
-        return merged_frames  # channel first format
+        return merged_frames
 
 
 @dataclass(frozen=True)
@@ -117,7 +116,7 @@ class EventFrameResize:
             
             resized_frame[idx] = pil_frame.resize(self.size)
         
-        return resized_frame  # Stack frames back into a single tensor
+        return resized_frame
 
 @dataclass(frozen=True)
 class EventFrameRandomResizedCrop:

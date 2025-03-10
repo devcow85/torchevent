@@ -11,68 +11,28 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
+
 class ArtifactManager:
     def __init__(self, experiment_name, cache_dir=None):
-        """
-        Initialize the ArtifactManager for managing artifacts during experiments.
-
-        Args:
-            experiment_name (str): Name of the experiment.
-            cache_dir (str, optional): Directory to save the artifacts. Defaults to '~/.cache/torchevent'.
-        """
         self.experiment_name = experiment_name
         self.cache_dir = cache_dir or os.path.expanduser("~/.cache/torchevent")
         self.artifacts = {}
         os.makedirs(self.cache_dir, exist_ok=True)
 
     def __setitem__(self, key, value):
-        """
-        Add or update an artifact using dictionary-like syntax.
-
-        Args:
-            key (str): Key for the artifact.
-            value: Value of the artifact.
-        """
         self.artifacts[key] = value
 
     def __getitem__(self, key):
-        """
-        Retrieve an artifact using dictionary-like syntax.
-
-        Args:
-            key (str): Key of the artifact to retrieve.
-
-        Returns:
-            The value of the requested artifact.
-        """
         return self.artifacts.get(key, None)
 
     def __delitem__(self, key):
-        """
-        Remove an artifact using dictionary-like syntax.
-
-        Args:
-            key (str): Key of the artifact to delete.
-        """
         if key in self.artifacts:
             del self.artifacts[key]
 
     def __contains__(self, key):
-        """
-        Check if an artifact exists using the `in` keyword.
-
-        Args:
-            key (str): Key of the artifact to check.
-
-        Returns:
-            bool: True if the artifact exists, False otherwise.
-        """
         return key in self.artifacts
 
     def save(self):
-        """
-        Save all artifacts to a pickle file with a unique name.
-        """
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"{self.experiment_name}_{timestamp}.pkl"
         save_path = os.path.join(self.cache_dir, filename)
@@ -85,15 +45,6 @@ class ArtifactManager:
             print(f"Error while saving artifacts: {e}")
 
     def load(self, filename):
-        """
-        Load artifacts from a specified pickle file.
-
-        Args:
-            filename (str): Name of the file to load the artifacts from.
-
-        Returns:
-            dict: The loaded artifacts.
-        """
         load_path = os.path.join(self.cache_dir, filename)
         
         if not os.path.exists(load_path):
@@ -109,10 +60,6 @@ class ArtifactManager:
             return None
 
     def export(self, output_dir=None):
-        """
-        Save each artifact as an individual file in the specified directory.
-        """
-        
         os.makedirs(output_dir, exist_ok=True)
 
         for key, value in self.artifacts.items():
@@ -139,12 +86,10 @@ class ArtifactManager:
                     self._plot_learning_curves(learning_curve_json = value).savefig(f"{file_path}.png", dpi=300)
                     
                 elif isinstance(value, (dict, list)):
-                    # Save as JSON
                     with open(f"{file_path}.json", "w", encoding="utf-8") as f:
                         json.dump(value, f, indent=4)
                     print(f"Artifact '{key}' saved as JSON to {file_path}.json")
                 else:
-                    # Save as plain text
                     with open(f"{file_path}.txt", "w", encoding="utf-8") as f:
                         f.write(str(value))
                     print(f"Artifact '{key}' saved as plain text to {file_path}.txt")
@@ -155,7 +100,6 @@ class ArtifactManager:
         df = pd.DataFrame(learning_curve_json)
         
         if metrics is None:
-            # Detect all numeric columns excluding common identifiers
             metrics = [col for col in df.columns if col not in ['epoch', 'phase'] and pd.api.types.is_numeric_dtype(df[col])]
 
         num_metrics = len(metrics)
@@ -176,7 +120,6 @@ class ArtifactManager:
             ax.legend()
             ax.grid(True)
 
-        # Hide unused subplots
         for j in range(i + 1, len(axes)):
             axes[j].axis('off')
 

@@ -85,7 +85,6 @@ class TSSLBP(torch.autograd.Function):
 
             partial_u = torch.clamp(-1 / delta_u[..., t], -8, 1e-6) * out   # add 1e-6 for prevent NaN when delta_u value close to 0
 
-            # current time is t_m
             partial_a_partial_u = (
                 partial_u.unsqueeze(-1).repeat(1, 1, 1, 1, time_len)
                 * partial_a[..., 0:time_len]
@@ -99,7 +98,6 @@ class TSSLBP(torch.autograd.Function):
                 grad_tmp += theta * u[..., t] * (-1) * theta_m * partial_u
                 grad_tmp += theta * (1 - theta_m) * (1 - out)
 
-            # current time is t_p
             theta = grad_tmp * out + theta * (1 - out) * (1 - theta_m)
 
             grad_a = torch.sum(
