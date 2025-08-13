@@ -167,6 +167,19 @@ class EventNormalize:
     
     def __call__(self, frames):
         return (frames - self.mean) / self.std
+  
+@dataclass(frozen=True)
+class EventFrameMinMaxScaler:
+    scale: float = 1.0
+    u8int: bool = True
+    
+    def __call__(self, frames):
+        max_val = (np.max(frames, axis=(1,2,3), keepdims=True)+1e-8)
+        if self.u8int:
+            out = frames/max_val*255
+            out = out.round()
+            return out
+        return frames/max_val*self.scale
     
     
 @dataclass(frozen=True)

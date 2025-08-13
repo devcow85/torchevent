@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools", "wheel", "setuptools-scm"]
-build-backend = "setuptools.build_meta"
+requires = ["scikit-build-core", "pybind11", "cmake"]
+build-backend = "scikit_build_core.build"
 
 [project]
 name = "torchevent"
-version = "0.1.0"
+version = "0.1.1"
 description = "A PyTorch library for event-based data processing"
 authors = [{ name = "seokhun.jeon", email = "seokhun.jeon@keti.re.kr" }]
 license = { text = "MIT" }
@@ -27,3 +27,14 @@ classifiers = [
 
 [project.urls]
 "Homepage" = "https://github.com/devcow85/torchevent"
+
+[tool.scikit-build]
+cmake.minimum-version = "3.18"
+cmake.args = [
+  "-DCMAKE_C_COMPILER=clang",
+  "-DCMAKE_CXX_COMPILER=clang++",
+  "-DCMAKE_CXX_STANDARD=17",
+  "-DCMAKE_CXX_FLAGS=--gcc-toolchain=/usr -stdlib=libstdc++ -fopenmp -I/usr/include -I/usr/include/c++/11 -I/usr/include/x86_64-linux-gnu/c++/11",
+  "-DCMAKE_EXE_LINKER_FLAGS=-fopenmp -L/usr/lib/gcc/x86_64-linux-gnu/11 -L/usr/lib/x86_64-linux-gnu -lomp",
+  "-DCMAKE_SHARED_LINKER_FLAGS=-L/usr/lib/gcc/x86_64-linux-gnu/11 -L/usr/lib/x86_64-linux-gnu -lstdc++"
+]

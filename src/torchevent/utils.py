@@ -4,7 +4,7 @@ import re
 import numpy as np
 import torch
 from tqdm import tqdm
-
+from torchevent.dataset import HybridCachedDataset
 import matplotlib.pyplot as plt
 
 def set_seed(random_seed):
@@ -162,6 +162,11 @@ def runner(train_recipes, dataloader):
     
     learning_log = []
     best_acc = 0
+    
+    patience          = 3        # 개선 없이 기다릴 Epoch 수
+    epochs_no_improve = 0        # 연속 미개선 Epoch 카운터
+    generation        = 0        # 캐시 세대 기록(선택)
+
     for epoch in range(train_recipes["max_epoch"]):
         logdict = {'epoch': epoch, 'phase': 'train'}
         metric = mlloops(model, train_loader, optimizer, criterion, "cuda", 'train', acc_metric_hook)
@@ -175,12 +180,23 @@ def runner(train_recipes, dataloader):
         
         if best_acc < float(metric['acc']):
             best_acc = float(metric['acc'])
+            epochs_no_improve = 0
             # model.save_model('examples/best_model.pt')  # 03. best model
             artifacts['best_model'] = copy.deepcopy(model.state_dict())
             print("save model!")
-    
-    artifacts['learning_curves'] = learning_log    # 02. learning logs
-    
+        else:
+            epochs_no_improve += 1
+
+        if (epochs_no_improve >= patience and
+            isinstance(train_loader.dataset, HybridCachedDataset)):
+            artifacts['learning_curves'] = learning_log    # 02. learning logs
+
+            generation += 1
+            train_loader.dataset.refresh_cache()
+            
+            print(f"\n🔄 Accuracy stagnant for {patience} epochs → "
+              f"refreshing cached dataset (gen {generation}) ...")
+            
     model.load_state_dict(artifacts['best_model'])
     print('best eval result')
     metric = mlloops(model, val_loader, optimizer, criterion, "cuda", 'eval', extented_cls_metric_hook)
@@ -191,8 +207,9 @@ def runner(train_recipes, dataloader):
     for data, target in val_loader:
         data = data.to('cuda').to(torch.float32)
         trace_result = model.trace(data)
-        
         break
     
     artifacts['trace_data'] = trace_result  # 06. trace data
     artifacts.save()
+    
+    return artifacts
